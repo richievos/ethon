@@ -1,11 +1,15 @@
 module Ethon
   class Easy
+    def self.build_header_finalizer(header_list)
+      proc {
+        Curl.slist_free_all(header_list)
+      }
+    end
 
     # This module contains the logic around adding headers to libcurl.
     #
     # @api private
     module Header
-
       # Return headers, return empty hash if none.
       #
       # @example Return the headers.
@@ -16,6 +20,8 @@ module Ethon
         @headers ||= {}
       end
 
+      HeaderHandleWrapper = Struct.new(:header_list)
+
       # Set the headers.
       #
       # @example Set the headers.
@@ -24,9 +30,11 @@ module Ethon
       # @param [ Hash ] headers The headers.
       def headers=(headers)
         headers ||= {}
-        @header_list = nil
-        headers.each {|k, v| @header_list = Curl.slist_append(@header_list, compose_header(k,v)) }
-        Curl.set_option(:httpheader, @header_list, handle)
+        header_list = nil
+        headers.each {|k, v| header_list = Curl.slist_append(header_list, compose_header(k,v)) }
+        Curl.set_option(:httpheader, header_list, handle)
+        @header_handle_wrapper = HeaderHandleWrapper.new(header_list)
+        ObjectSpace.define_finalizer(@header_handle_wrapper, Ethon::Easy.build_header_finalizer(header_list))
       end
 
       # Return header_list.
@@ -36,7 +44,7 @@ module Ethon
       #
       # @return [ FFI::Pointer ] The header list.
       def header_list
-        @header_list ||= nil
+        @header_handle_wrapper && @header_handle_wrapper.header_list
       end
 
       # Compose libcurl header string from key and value.

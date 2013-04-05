@@ -13,6 +13,10 @@ module Ethon
       include Ethon::Easy::Util
       include Ethon::Easy::Queryable
 
+      def self.form_pointer_finalizer(pointer)
+        proc { Curl.formfree(pointer) }
+      end
+
       # Return a new Form.
       #
       # @example Return a new Form.
@@ -24,17 +28,6 @@ module Ethon
       def initialize(easy, params)
         @easy = easy
         @params = params || {}
-        ObjectSpace.define_finalizer(self, self.class.finalizer(self))
-      end
-
-      # Frees form in libcurl if necessary.
-      #
-      # @example Free the form
-      #   Form.finalizer(form)
-      #
-      # @param [ Form ] form The form to free.
-      def self.finalizer(form)
-        proc { Curl.formfree(form.first) if form.multipart? }
       end
 
       # Return a pointer to the first form element in libcurl.
@@ -98,6 +91,14 @@ module Ethon
                        :form_option, :end
                       )
         end
+
+        build_multipart_finalizer
+      end
+
+      def build_multipart_finalizer
+        return if @finalizer_set
+        ObjectSpace.define_finalizer(self, self.class.form_pointer_finalizer(first))
+        @finalizer_set = true
       end
     end
   end

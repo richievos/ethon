@@ -3,6 +3,35 @@ require 'spec_helper'
 describe Ethon::Easy do
   let(:easy) { Ethon::Easy.new }
 
+  describe "curl object cleanup" do
+    describe "its first handle" do
+      it "sets up a finalizer when it's touched" do
+        ObjectSpace.should_receive(:define_finalizer)
+        easy.handle
+      end
+
+      it "finalizes by easy_cleanup'ing the handle" do
+        handle = stub
+        Ethon::Curl.should_receive(:multi_cleanup).with(handle)
+        Ethon::Easy.build_multi_handle_finalizer(handle).call
+      end
+    end
+
+    describe "its headers" do
+      it "sets up a finalizer when the headers are set'" do
+        easy.handle
+        ObjectSpace.should_receive(:define_finalizer)
+        easy.headers = { "a" => 1 }
+      end
+
+      it "finalizes by easy_cleanup'ing the handle" do
+        header_list = stub
+        Ethon::Curl.should_receive(:slist_free_all).with(header_list)
+        Ethon::Easy.build_header_finalizer(header_list).call
+      end
+    end
+  end
+
   describe ".new" do
     it "inits curl" do
       Ethon::Curl.should_receive(:init)
@@ -98,22 +127,6 @@ describe Ethon::Easy do
     ].each do |name|
       it "contains #{name}" do
         expect(easy.to_hash).to include(name)
-      end
-    end
-  end
-
-  describe ".finalizer" do
-    it "calls easy_cleanup" do
-      Ethon::Curl.should_receive(:easy_cleanup).with(easy.handle)
-      Ethon::Easy.finalizer(easy).call
-    end
-
-    context "when header_list" do
-      before { easy.instance_variable_set(:@header_list, 1) }
-
-      it "calls slist_free_all" do
-        Ethon::Curl.should_receive(:slist_free_all).with(easy.header_list)
-        Ethon::Easy.finalizer(easy).call
       end
     end
   end

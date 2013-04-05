@@ -5,12 +5,23 @@ describe Ethon::Easy::Form do
   let!(:easy) { Ethon::Easy.new }
   let(:form) { Ethon::Easy::Form.new(easy, hash) }
 
-  describe ".new" do
-    it "defines finalizer" do
-      ObjectSpace.should_receive(:define_finalizer)
-      form
-    end
+  describe "curl object cleanup" do
+    describe "its first handle" do
+      it "sets up a finalizer when it's touched" do
+        form = Ethon::Easy::Form.new(easy, { "a" => "1"})
+        ObjectSpace.should_receive(:define_finalizer)
+        form.materialize
+      end
 
+      it "finalizes by easy_cleanup'ing the handle" do
+        first_pointer = stub
+        Ethon::Curl.should_receive(:formfree).with(first_pointer)
+        Ethon::Easy::Form.form_pointer_finalizer(first_pointer).call
+      end
+    end
+  end
+
+  describe ".new" do
     it "assigns attribute to @params" do
       expect(form.instance_variable_get(:@params)).to eq(hash)
     end

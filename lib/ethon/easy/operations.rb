@@ -1,8 +1,15 @@
 module Ethon
   class Easy
+    def self.build_multi_handle_finalizer(handle)
+      proc {
+        Curl.easy_cleanup(handle)
+      }
+    end
+
     # This module contains the logic to prepare and perform
     # an easy.
     module Operations
+      HandleWrapper = Struct.new(:handle)
 
       # Returns a pointer to the curl easy handle.
       #
@@ -11,7 +18,15 @@ module Ethon
       #
       # @return [ FFI::Pointer ] A pointer to the curl easy handle.
       def handle
-        @handle ||= Curl.easy_init
+        @handle_wrapper ||= begin
+          new_handle = Curl.easy_init
+          handle_wrapper = HandleWrapper.new(new_handle)
+          ObjectSpace.define_finalizer(handle_wrapper, Ethon::Easy.build_multi_handle_finalizer(new_handle))
+
+          handle_wrapper
+        end
+
+        @handle_wrapper.handle
       end
 
       # Perform the easy request.

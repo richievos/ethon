@@ -1,8 +1,15 @@
 module Ethon
   class Multi # :nodoc
 
+    def self.build_multi_handle_finalizer(handle)
+      proc {
+        Curl.multi_cleanup(handle)
+      }
+    end
+
     # This module contains logic to run a multi.
     module Operations
+      HandleWrapper = Struct.new(:handle)
 
       # Return the multi handle. Inititialize multi handle,
       # in case it didn't happened already.
@@ -12,7 +19,15 @@ module Ethon
       #
       # @return [ FFI::Pointer ] The multi handle.
       def handle
-        @handle ||= Curl.multi_init
+        @handle_wrapper ||= begin
+          new_handle = Curl.multi_init
+          handle_wrapper = HandleWrapper.new(new_handle)
+          ObjectSpace.define_finalizer(handle_wrapper, Ethon::Multi.build_multi_handle_finalizer(new_handle))
+
+          handle_wrapper
+        end
+
+        @handle_wrapper.handle
       end
 
       # Initialize variables.
